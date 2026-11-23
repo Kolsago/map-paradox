@@ -1,0 +1,20 @@
+{
+  "name": "WhyMapped — Map Paradox",
+  "short_name": "Map Paradox",
+  "description": "Every Map Has a Why. Interactive 3D observatory for geographic illusions, true-size Mercator distortion, Earth antipode tunnels, and verified cartographic anomalies.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071324",
+  "theme_color": "#071324",
+  "orientation": "any",
+  "categories": ["education", "games", "utilities"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='28' fill='%230E2747'/%3E%3Crect x='4' y='4' width='120' height='120' rx='24' fill='none' stroke='%23DCCDBA' stroke-opacity='0.34' stroke-width='3'/%3E%3Cpath d='M20 40 L34 88 L48 54 L62 88 L76 40' fill='none' stroke='%23FBF6EE' stroke-width='8.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M72 84 Q86 88 92 74' fill='none' stroke='%23F7931E' stroke-width='4.5' stroke-dasharray='7 7' stroke-linecap='round'/%3E%3Cpath d='M90 42 C90 33.5 106 33.5 106 43.5 C106 50.5 98 52.5 98 59' fill='none' stroke='%23FFE066' stroke-width='6.8' stroke-linecap='round'/%3E%3Ccircle cx='98' cy='71' r='7.2' fill='%23F7931E'/%3E%3Ccircle cx='98' cy='71' r='2.6' fill='%23071324'/%3E%3C/svg%3E",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
