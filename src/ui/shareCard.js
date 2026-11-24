@@ -523,7 +523,7 @@ function drawFooter(ctx) {
 
   ctx.fillStyle = PALETTE.orange;
   ctx.font = `700 18px ${FONT_STACK}`;
-  ctx.fillText('youtube.com/@WhyMappedGeo', CARD_W / 2, 1287);
+  ctx.fillText('kolsago.github.io/map-paradox  •  youtube.com/@WhyMappedGeo', CARD_W / 2, 1287);
   ctx.restore();
 }
 

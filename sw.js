@@ -3,7 +3,7 @@
    Offline-first precaching for zero-dependency cartographic observatory.
    ========================================================================== */
 
-const CACHE_NAME = 'whymapped-paradox-v3';
+const CACHE_NAME = 'whymapped-paradox-v4';
 
 const CORE_ASSETS = [
   './',

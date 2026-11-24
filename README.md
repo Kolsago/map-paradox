@@ -2,6 +2,9 @@
 
 **Every Map Has a Why.**
 
+- 🌍 **Live Observatory:** [kolsago.github.io/map-paradox](https://kolsago.github.io/map-paradox/)
+- 📺 **YouTube Channel:** [@WhyMappedGeo](https://www.youtube.com/@WhyMappedGeo)
+
 A standalone, zero-dependency, offline-capable interactive 3D cartographic observatory built with pure HTML5 Canvas, vanilla ES Modules, Web Audio synthesis, and self-hosted typography.
 
 ## Interactive Modes

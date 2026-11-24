@@ -444,5 +444,7 @@ export function buildEmojiShareText({
     `${tiles} ${fmtScore}/${fmtMax}`,
     statusLine,
     'Every Map Has a Why.',
+    '🌍 Play: https://kolsago.github.io/map-paradox/',
+    '📺 youtube.com/@WhyMappedGeo',
   ].join('\n');
 }
