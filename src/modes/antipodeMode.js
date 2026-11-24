@@ -396,8 +396,21 @@ export function createAntipodeMode() {
             <span class="section-label" style="margin: 0;">Synchronized Twin Exit View</span>
             <span class="mono muted" style="font-size: 0.74rem;" data-slot="mini-exit-coord"></span>
           </div>
-          <div class="mini-globe-wrap" data-role="mini-wrap">
-            <canvas data-role="mini-globe" aria-label="Antipode exit mini-globe"></canvas>
+          <div class="radar-scope">
+            <span class="radar-cardinal radar-n" aria-hidden="true">N</span>
+            <span class="radar-cardinal radar-e" aria-hidden="true">E</span>
+            <span class="radar-cardinal radar-s" aria-hidden="true">S</span>
+            <span class="radar-cardinal radar-w" aria-hidden="true">W</span>
+            <div class="mini-globe-wrap" data-role="mini-wrap">
+              <canvas data-role="mini-globe" aria-label="Antipode exit mini-globe"></canvas>
+            </div>
+          </div>
+          <div class="radar-telemetry-strip mono">
+            <span>ENTRY</span>
+            <span aria-hidden="true">→</span>
+            <strong>12,742 KM CORE</strong>
+            <span aria-hidden="true">→</span>
+            <span>EXIT</span>
           </div>
           <div class="row-between">
             <span class="muted" style="font-size: 0.76rem;">Opposite Side of Earth</span>

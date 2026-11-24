@@ -702,15 +702,17 @@ export function createDailyMode() {
     }
   }
 
-  function handleDownloadShareCard() {
-    if (!ctx?.shareCard?.renderShareCard) return;
-    ctx?.sound?.playClick?.();
+  let lastPreviewKey = '';
+  let lastPreviewUrl = '';
+
+  function buildShareCardCanvas() {
+    if (!ctx?.shareCard?.renderShareCard) return null;
     const maxScore = Math.max(1000, roundResults.length * 1000);
     const rank = ctx.dailySeed.getCartographerRank(totalScore, maxScore);
     const modeLabel = subMode === 'daily' ? `Daily Paradox #${puzzleNum}` : 'Endless Arcade';
     const globeSnapshot = ctx.globe?.exportSnapshot?.(720) || null;
 
-    const canvas = ctx.shareCard.renderShareCard({
+    return ctx.shareCard.renderShareCard({
       puzzleNum,
       modeLabel,
       totalScore,
@@ -720,6 +722,12 @@ export function createDailyMode() {
       roundResults,
       globeSnapshot,
     });
+  }
+
+  function handleDownloadShareCard() {
+    const canvas = buildShareCardCanvas();
+    if (!canvas) return;
+    ctx?.sound?.playClick?.();
 
     const filename = subMode === 'daily'
       ? `whymapped-paradox-${puzzleNum}.png`
@@ -732,13 +740,20 @@ export function createDailyMode() {
     const count = Math.max(5, rounds.length);
     return Array.from({ length: count }, (_, idx) => {
       const res = roundResults[idx];
-      let cls = 'pip';
+      let cls = 'stepper-node';
+      let label = String(idx + 1);
       if (res) {
-        cls += ` ${getPipTierClass(res.score, res.maxScore || 1000)}`;
+        const tier = getPipTierClass(res.score, res.maxScore || 1000);
+        cls += ` ${tier}`;
+        label = tier === 'miss' ? '×' : '✓';
       } else if (phase !== 'results' && idx === roundIndex) {
         cls += ' current';
       }
-      return `<div class="${cls}" title="Round ${idx + 1}${res ? `: ${res.score} pts` : ''}"></div>`;
+      return `
+        <div class="${cls}" title="Round ${idx + 1}${res ? `: ${res.score} pts` : ''}">
+          <span class="stepper-dot mono">${label}</span>
+        </div>
+      `;
     }).join('');
   }
 
@@ -769,7 +784,7 @@ export function createDailyMode() {
         </div>
 
         <div class="row-between" style="gap: 10px;">
-          <div class="pip-row" style="flex: 1;">
+          <div class="stepper-row" style="flex: 1;">
             ${renderPipsHTML()}
           </div>
           <div class="mono" style="font-size: 0.88rem; font-weight: 700; white-space: nowrap;">
@@ -981,6 +996,12 @@ export function createDailyMode() {
           </div>
         </div>
 
+        <div class="share-preview-wrap">
+          <div class="section-label" style="margin: 0;">Observatory Share Card Preview</div>
+          <img class="share-preview-img" data-slot="share-preview-img" alt="Daily Paradox Observatory Share Card" hidden />
+          <div class="share-preview-caption">Ready for Shorts / X / Discord • 1080×1350 PNG</div>
+        </div>
+
         <div class="stack-sm">
           <button type="button" class="btn-primary btn-full" data-action="copy-emoji">
             📋 Copy Emoji Grid
@@ -1001,6 +1022,27 @@ export function createDailyMode() {
     `;
   }
 
+  function mountShareCardPreview() {
+    const imgEl = panelEl?.querySelector('[data-slot="share-preview-img"]');
+    if (!imgEl || !ctx?.shareCard?.renderShareCard) return;
+    const key = `${puzzleNum}:${subMode}:${Math.round(totalScore)}:${roundResults.length}`;
+    if (key !== lastPreviewKey || !lastPreviewUrl) {
+      try {
+        const canvas = buildShareCardCanvas();
+        if (canvas) {
+          lastPreviewUrl = canvas.toDataURL('image/png');
+          lastPreviewKey = key;
+        }
+      } catch {
+        return;
+      }
+    }
+    if (lastPreviewUrl) {
+      imgEl.src = lastPreviewUrl;
+      imgEl.hidden = false;
+    }
+  }
+
   function render() {
     if (!panelEl) return;
     panelEl.innerHTML = `
@@ -1009,6 +1051,9 @@ export function createDailyMode() {
         ${phase === 'results' ? renderResultsBodyHTML() : renderRoundBodyHTML()}
       </div>
     `;
+    if (phase === 'results') {
+      mountShareCardPreview();
+    }
   }
 
   function handlePanelClick(e) {
@@ -1111,6 +1156,21 @@ export function createDailyMode() {
 
     onKeyDown(e) {
       if (!mounted) return false;
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && phase === 'playing') {
+        const round = getCurrentRound();
+        if (round && round.type !== 'pinpoint') {
+          const upper = (e.key || '').toUpperCase();
+          const keyIdx = { '1': 0, A: 0, '2': 1, B: 1, '3': 2, C: 2, '4': 3, D: 3 }[upper];
+          if (keyIdx !== undefined) {
+            const btn = panelEl?.querySelectorAll('.option-list .option-btn')?.[keyIdx];
+            if (btn && !btn.disabled) {
+              e.preventDefault();
+              btn.click();
+              return true;
+            }
+          }
+        }
+      }
       if (e.code === 'Space' || e.key === ' ') {
         const round = getCurrentRound();
         if (phase === 'playing' && round?.type === 'pinpoint' && pinpointGuess) {

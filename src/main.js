@@ -61,14 +61,24 @@ function isTypingTarget(el) {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || Boolean(el.isContentEditable);
 }
 
+function formatCompactArea(areaKm2) {
+  if (!Number.isFinite(areaKm2) || areaKm2 <= 0) return '';
+  if (areaKm2 >= 1_000_000) return `${(areaKm2 / 1_000_000).toFixed(2)}M km²`;
+  if (areaKm2 >= 10_000) return `${Math.round(areaKm2 / 1_000)}K km²`;
+  return `${Math.round(areaKm2).toLocaleString()} km²`;
+}
+
 function initApp() {
+  const appShell = document.querySelector('.app-shell');
   const canvasWrap = document.getElementById('canvas-wrap');
   const canvas = document.getElementById('globe-canvas');
   const panelEl = document.getElementById('mode-panel');
   const panelShell = document.getElementById('mode-panel-shell');
   const hintEl = document.getElementById('globe-hint');
   const coordsEl = document.getElementById('globe-coords');
+  const countryPillEl = document.getElementById('globe-country-pill');
   const projPillEl = document.getElementById('globe-proj-pill');
+  const zoomReadoutEl = document.getElementById('globe-zoom-readout');
   const toastRoot = document.getElementById('toast-root');
   const drawerModeLabel = document.getElementById('drawer-mode-label');
   const drawerToggleBtn = document.getElementById('btn-drawer-toggle');
@@ -139,18 +149,34 @@ function initApp() {
 
   function updateProjectionPill(proj) {
     if (!projPillEl) return;
-    projPillEl.textContent = proj === 'mercator' ? '2D MERCATOR' : '3D GLOBE';
+    const isMerc = proj === 'mercator';
+    projPillEl.textContent = isMerc ? '2D MERCATOR' : '3D GLOBE';
+    projPillEl.classList.toggle('is-mercator', isMerc);
   }
 
   function updateCoordsHud(info) {
     if (!coordsEl) return;
     if (!info || !Number.isFinite(info.lon) || !Number.isFinite(info.lat)) {
+      if (countryPillEl) countryPillEl.hidden = true;
       return;
     }
     const latDir = info.lat >= 0 ? 'N' : 'S';
     const lonDir = info.lon >= 0 ? 'E' : 'W';
-    const place = info.country?.name ? ` • ${info.country.name}` : '';
-    coordsEl.textContent = `${Math.abs(info.lat).toFixed(2)}° ${latDir} • ${Math.abs(info.lon).toFixed(2)}° ${lonDir}${place}`;
+    coordsEl.textContent = `${Math.abs(info.lat).toFixed(2)}° ${latDir} • ${Math.abs(info.lon).toFixed(2)}° ${lonDir}`;
+
+    if (countryPillEl) {
+      if (info.country?.name) {
+        const areaTxt = formatCompactArea(info.country.areaKm2);
+        const dot = document.createElement('span');
+        dot.className = 'country-dot';
+        dot.setAttribute('aria-hidden', 'true');
+        const label = document.createTextNode(areaTxt ? `${info.country.name} • ${areaTxt}` : info.country.name);
+        countryPillEl.replaceChildren(dot, label);
+        countryPillEl.hidden = false;
+      } else {
+        countryPillEl.hidden = true;
+      }
+    }
   }
 
   /* ---------- Instantiate 3D Globe Engine ---------- */
@@ -193,7 +219,9 @@ function initApp() {
   if (rawSetZoom) {
     globe.setZoom = (z) => {
       if (Number.isFinite(z)) trackedZoom = clamp(z, 0.75, 6);
-      return rawSetZoom(z);
+      const res = rawSetZoom(z);
+      updateZoomHud?.();
+      return res;
     };
   }
 
@@ -201,7 +229,9 @@ function initApp() {
   if (rawFlyTo) {
     globe.flyTo = (lon, lat, zoom = 1, durationMs = 800) => {
       if (Number.isFinite(zoom)) trackedZoom = clamp(zoom, 0.75, 6);
-      return rawFlyTo(lon, lat, zoom, durationMs);
+      const res = rawFlyTo(lon, lat, zoom, durationMs);
+      updateZoomHud?.();
+      return res;
     };
   }
 
@@ -250,10 +280,17 @@ function initApp() {
     return trackedZoom;
   }
 
+  function updateZoomHud() {
+    if (!zoomReadoutEl) return;
+    const z = readCurrentZoom();
+    zoomReadoutEl.textContent = `${z.toFixed(1)}×`;
+  }
+
   function stepZoom(multiplier) {
     const next = clamp(readCurrentZoom() * multiplier, 0.75, 6);
     trackedZoom = next;
     globe.setZoom?.(next);
+    updateZoomHud();
     soundEngine.playClick?.();
   }
 
@@ -264,6 +301,7 @@ function initApp() {
     } else {
       globe.flyTo?.(12, 22, 1, 680);
     }
+    updateZoomHud();
     if (!silent) {
       soundEngine.playClick?.();
       notify('Globe view reset', 'info');
@@ -273,6 +311,20 @@ function initApp() {
   zoomInBtn?.addEventListener('click', () => stepZoom(1.28));
   zoomOutBtn?.addEventListener('click', () => stepZoom(0.78));
   resetViewBtn?.addEventListener('click', () => resetGlobeView(false));
+  canvas.addEventListener('wheel', () => requestAnimationFrame(updateZoomHud), { passive: true });
+  canvas.addEventListener('pointerup', () => requestAnimationFrame(updateZoomHud), { passive: true });
+  projPillEl?.addEventListener('click', () => {
+    const cur = globe.getProjection?.() || 'globe';
+    const nextProj = cur === 'mercator' ? 'globe' : 'mercator';
+    const modeProjBtn = panelEl.querySelector(`[data-projection="${nextProj}"]`);
+    if (modeProjBtn) {
+      modeProjBtn.click();
+    } else {
+      globe.setProjection?.(nextProj);
+      soundEngine.playClick?.();
+    }
+  });
+  updateZoomHud();
   autoSpinBtn?.addEventListener('click', () => {
     const next = !autoSpinEnabled;
     if (next && globe.getProjection?.() === 'mercator') {
@@ -401,8 +453,11 @@ function initApp() {
     }
 
     activeModeId = targetId;
+    if (appShell) appShell.dataset.activeMode = targetId;
+    if (countryPillEl) countryPillEl.hidden = true;
     const entry = MODE_REGISTRY[targetId];
     updateTabHighlight(targetId);
+    updateZoomHud();
     setGlobeHint(entry.defaultHint);
 
     if (updateHash && window.location.hash !== `#${targetId}`) {

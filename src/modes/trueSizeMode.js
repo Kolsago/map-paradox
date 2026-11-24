@@ -310,6 +310,37 @@ export function createTrueSizeMode() {
       compareText = `vs ${under.name} (${formatArea(under.areaKm2)}): ${sel.country.name} is ${ratioStr}`;
     }
 
+    const selArea = Number(sel.country.areaKm2) || 0;
+    const underArea = Number(under?.areaKm2) || 0;
+    const maxArea = Math.max(selArea, underArea, 1);
+    const selPct = Math.max(4, Math.min(100, (selArea / maxArea) * 100));
+    const underPct = underArea > 0 ? Math.max(4, Math.min(100, (underArea / maxArea) * 100)) : 0;
+
+    const compareBarsHTML = `
+      <div class="compare-bars">
+        <div class="compare-row">
+          <div class="compare-meta">
+            <strong>${esc(sel.country.name)}</strong>
+            <span class="mono">${esc(formatArea(selArea))}</span>
+          </div>
+          <div class="compare-track">
+            <div class="compare-fill" style="width: ${selPct.toFixed(1)}%; background: ${sel.palette.solid};"></div>
+          </div>
+        </div>
+        ${under && underArea > 0 ? `
+          <div class="compare-row">
+            <div class="compare-meta">
+              <strong>${esc(under.name)}</strong>
+              <span class="mono">${esc(formatArea(underArea))}</span>
+            </div>
+            <div class="compare-track">
+              <div class="compare-fill" style="width: ${underPct.toFixed(1)}%; background: #38BDF8;"></div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
     // Relative visual scale shift from home latitude to dragged latitude
     const visualShift = curFactor / Math.max(1, homeFactor);
     let shiftLine = '';
@@ -359,9 +390,10 @@ export function createTrueSizeMode() {
           </div>
         </div>
 
-        <div class="stat-box accent-cyan" style="padding: 8px 10px;">
-          <div class="stat-label">Live Scale Comparison</div>
-          <div style="font-size: 0.8rem; line-height: 1.38;">${esc(compareText)}</div>
+        <div class="stat-box accent-cyan" style="padding: 9px 11px; gap: 6px;">
+          <div class="stat-label">Live Proportional Comparison</div>
+          <div style="font-size: 0.79rem; line-height: 1.38;">${esc(compareText)}</div>
+          ${compareBarsHTML}
         </div>
       </div>
     `;
@@ -473,8 +505,9 @@ export function createTrueSizeMode() {
     if (!panelEl) return;
     const presets = getPresets();
     const presetsHTML = presets.map((p) => `
-      <button type="button" class="chip${activePresetId === p.id ? ' active' : ''}" data-preset-id="${esc(p.id)}" title="${esc(p.tagline || p.title)}">
-        ${esc(p.title)}
+      <button type="button" class="preset-card${activePresetId === p.id ? ' active' : ''}" data-preset-id="${esc(p.id)}" title="${esc(p.tagline || p.title)}">
+        <span class="preset-card-title">${esc(p.title)}</span>
+        ${p.tagline ? `<span class="preset-card-sub">${esc(p.tagline)}</span>` : ''}
       </button>
     `).join('');
 
@@ -507,7 +540,7 @@ export function createTrueSizeMode() {
             <span class="mono" style="font-size: 0.82rem; color: #FFE066;" data-slot="rotation-deg">0°</span>
           </div>
           <div class="range-wrap">
-            <input type="range" class="slider" min="-180" max="180" step="1" value="0" data-role="rotation-slider" aria-label="Overlay rotation angle" />
+            <input id="truesize-rotation" name="rotation" type="range" class="slider" min="-180" max="180" step="1" value="0" data-role="rotation-slider" aria-label="Overlay rotation angle" />
           </div>
           <div class="row-between" style="gap: 6px;">
             <div class="row" style="gap: 6px;">
@@ -528,6 +561,8 @@ export function createTrueSizeMode() {
           <div class="section-label">Add Any Country (177 Nations)</div>
           <div class="search-wrap">
             <input
+              id="truesize-country-search"
+              name="country-search"
               type="search"
               class="search-input"
               placeholder="Search countries (e.g. Greenland, Japan, Brazil)..."
@@ -543,7 +578,7 @@ export function createTrueSizeMode() {
 
         <div class="panel-section stack-sm">
           <div class="section-label">Viral Scale Comparisons</div>
-          <div class="chip-row" data-role="presets">
+          <div class="preset-grid" data-role="presets">
             ${presetsHTML}
           </div>
         </div>

@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="./styles/main.css">
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app-shell" data-active-mode="daily">
     <!-- Subtle Topographic Contour Backdrop -->
     <div class="observatory-backdrop" aria-hidden="true">
       <svg class="contour-svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
@@ -125,6 +125,7 @@
             <rect x="2" y="4.2" width="16" height="11.6" rx="3.4" stroke="currentColor" stroke-width="1.5"/>
             <polygon points="8.3,7.3 13.3,10 8.3,12.7" fill="currentColor"/>
           </svg>
+          <span class="yt-live-dot" aria-hidden="true"></span>
           <span class="yt-sub-label">@WhyMappedGeo</span>
         </a>
 
@@ -155,8 +156,9 @@
 
         <!-- Subtle Observatory Telemetry HUD (Top-Left of Globe) -->
         <div class="globe-hud-top">
-          <div id="globe-proj-pill" class="hud-pill mono">3D GLOBE</div>
+          <button id="globe-proj-pill" class="hud-pill hud-proj-btn mono" type="button" title="Toggle 3D Globe / 2D Mercator projection">3D GLOBE</button>
           <div id="globe-coords" class="hud-pill hud-coords mono" aria-live="off">0.00° N • 0.00° E</div>
+          <div id="globe-country-pill" class="hud-pill hud-country mono" hidden></div>
         </div>
 
         <!-- Bottom-Center Floating Hint Pill -->
@@ -176,6 +178,7 @@
               <path d="M4 9 H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             </svg>
           </button>
+          <span id="globe-zoom-readout" class="ctrl-zoom-readout mono" title="Camera magnification">1.0×</span>
           <div class="ctrl-sep" aria-hidden="true"></div>
           <button id="btn-reset-view" class="ctrl-btn" type="button" aria-label="Reset globe view" title="Reset View (R)">
             <svg viewBox="0 0 18 18" fill="none" aria-hidden="true">

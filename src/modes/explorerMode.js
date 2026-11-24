@@ -305,8 +305,8 @@ export function createExplorerMode() {
             <button type="button" class="btn-secondary btn-sm" data-action="prev" title="Previous anomaly">← Prev</button>
             <button type="button" class="btn-secondary btn-sm" data-action="next" title="Next anomaly (Space)">Next →</button>
           </div>
-          <div class="row" style="gap: 6px;">
-            ${anomaly.shortUrl ? `<a class="btn-secondary btn-sm" href="${esc(anomaly.shortUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">▶ Short ↗</a>` : ''}
+          <div class="row row-wrap" style="gap: 6px;">
+            ${anomaly.shortUrl ? `<a class="btn-short-cta" href="${esc(anomaly.shortUrl)}" target="_blank" rel="noopener noreferrer">▶ Watch 60fps Short ↗</a>` : ''}
             <button type="button" class="${autopilotActive ? 'btn-primary' : 'btn-ghost'} btn-sm" data-action="autopilot" aria-pressed="${autopilotActive ? 'true' : 'false'}">
               ${autopilotActive ? '⏸ Stop Tour' : '▶ Autopilot'}
             </button>
@@ -318,17 +318,23 @@ export function createExplorerMode() {
 
   function renderListHTML() {
     if (filtered.length === 0) return '';
-    return filtered.map((item) => {
+    return filtered.map((item, idx) => {
       const isActive = item.id === selectedId;
+      const numLabel = String(idx + 1).padStart(2, '0');
       return `
         <button type="button" class="dossier-item${isActive ? ' active' : ''}" data-anomaly-id="${esc(item.id)}">
-          <div class="row-between" style="gap: 8px; width: 100%;">
-            <strong style="text-align: left; font-size: 0.86rem;">${esc(item.title)}</strong>
-            ${item.statBadge ? `<span class="badge badge-muted" style="flex-shrink: 0;">${esc(item.statBadge)}</span>` : ''}
-          </div>
-          <div class="row-between muted" style="gap: 8px; width: 100%; font-size: 0.76rem; margin-top: 2px;">
-            <span style="text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(item.subtitle || capitalize(item.category))}</span>
-            <span class="mono" style="flex-shrink: 0;">${esc(capitalize(item.category))}</span>
+          <div class="dossier-item-row" style="width: 100%;">
+            <span class="dossier-idx mono">${numLabel}</span>
+            <div class="stack-sm" style="gap: 2px; flex: 1; min-width: 0;">
+              <div class="row-between" style="gap: 8px; width: 100%;">
+                <strong style="text-align: left; font-size: 0.85rem;">${esc(item.title)}</strong>
+                ${item.statBadge ? `<span class="badge badge-muted" style="flex-shrink: 0;">${esc(item.statBadge)}</span>` : ''}
+              </div>
+              <div class="row-between muted" style="gap: 8px; width: 100%; font-size: 0.75rem;">
+                <span style="text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(item.subtitle || capitalize(item.category))}</span>
+                <span class="mono" style="flex-shrink: 0;">${esc(capitalize(item.category))}</span>
+              </div>
+            </div>
           </div>
         </button>
       `;
@@ -383,6 +389,8 @@ export function createExplorerMode() {
         <div class="stack-sm">
           <div class="search-wrap">
             <input
+              id="explorer-search"
+              name="explorer-search"
               type="search"
               class="search-input"
               placeholder="Search borders, islands, oceans, paradoxes..."

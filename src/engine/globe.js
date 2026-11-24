@@ -25,22 +25,31 @@ const MERC_MATH_LIMIT = 85.051129;
 
 const PALETTE = {
   spaceBg: "#071324",
-  oceanCore: "#13355E",
-  oceanMid: "#0D2545",
-  oceanDeep: "#07162B",
-  oceanLimb: "#040D1B",
+  oceanCore: "#174273",
+  oceanMid: "#0E294D",
+  oceanDeep: "#081830",
+  oceanLimb: "#030B17",
   landFill: "#1B3A5C",
   landStroke: "#345E8C",
-  landHover: "#244C77",
-  graticule: "rgba(56, 108, 165, 0.24)",
+  landHover: "#2F6396",
+  landHoverStroke: "#8CD0FF",
+  coastalHalo: "rgba(72, 175, 255, 0.14)",
+  graticule: "rgba(56, 108, 165, 0.22)",
   equator: "rgba(220, 205, 186, 0.30)",
   orange: "#F7931E",
   gold: "#FFE066",
   parchment: "#FBF6EE",
   muted: "#DCCDBA",
-  cyanRim: "rgba(96, 180, 255, 0.34)",
-  goldRim: "rgba(255, 224, 102, 0.14)",
+  cyanRim: "rgba(96, 180, 255, 0.38)",
+  goldRim: "rgba(255, 224, 102, 0.16)",
 };
+
+const LAND_TONES = [
+  { fill: "#183757", stroke: "#315D8C" },
+  { fill: "#1D4064", stroke: "#396A9D" },
+  { fill: "#15314F", stroke: "#2B547E" },
+  { fill: "#20446B", stroke: "#3E70A4" },
+];
 
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -232,8 +241,14 @@ export class GlobeEngine {
     // Precompile country geometry & lookup maps
     this._countryLookup = new Map();
     this._compiledCountries = this.countries.map((c) => {
+      const key = String(c.id || c.name || "");
+      let hash = 0;
+      for (let k = 0; k < key.length; k++) {
+        hash = ((hash * 31) + key.charCodeAt(k)) | 0;
+      }
       const compiled = {
         country: c,
+        toneIdx: Math.abs(hash) % LAND_TONES.length,
         rings: compileRings(c.polygons || [], Boolean(c.isPolar)),
       };
       if (c.id) this._countryLookup.set(normalizeLookupKey(c.id), c.id);
@@ -370,6 +385,7 @@ export class GlobeEngine {
       overlays: [],
       tunnel: null,
     };
+    this._hoveredCountryId = null;
   }
 
   onClick(cb) {
@@ -959,36 +975,49 @@ export class GlobeEngine {
   // ==================== 3D ORTHOGRAPHIC GLOBE RENDERER ====================
 
   _renderGlobe(ctx, w, h, now) {
+    this._framePillRects = [];
     const { cx, cy, R } = this._globeMetrics(w, h);
     const cam = this._buildCameraBasis();
     const pulseWave = 0.5 + 0.5 * Math.sin(now * 0.0045);
 
-    // 1. Atmospheric outer halo (cyan + faint gold observatory rim)
-    const haloGrad = ctx.createRadialGradient(cx, cy, R * 0.94, cx, cy, R * 1.18);
-    haloGrad.addColorStop(0, "rgba(72, 162, 248, 0.28)");
-    haloGrad.addColorStop(0.45, "rgba(247, 147, 30, 0.06)");
+    // 1. Atmospheric outer halo (rich ice-cyan + warm observatory amber rim)
+    const haloGrad = ctx.createRadialGradient(cx, cy, R * 0.93, cx, cy, R * 1.19);
+    haloGrad.addColorStop(0, "rgba(56, 189, 248, 0.30)");
+    haloGrad.addColorStop(0.45, "rgba(247, 147, 30, 0.08)");
     haloGrad.addColorStop(1, "rgba(7, 19, 36, 0)");
     ctx.fillStyle = haloGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, R * 1.18, 0, Math.PI * 2);
+    ctx.arc(cx, cy, R * 1.19, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. Sphere ocean body
+    // 2. Sphere ocean body + subtle atmospheric specular gleam
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.clip();
 
     const oceanGrad = ctx.createRadialGradient(
-      cx - R * 0.30, cy - R * 0.30, R * 0.08,
-      cx, cy, R * 1.05
+      cx - R * 0.32, cy - R * 0.32, R * 0.06,
+      cx, cy, R * 1.04
     );
     oceanGrad.addColorStop(0, PALETTE.oceanCore);
-    oceanGrad.addColorStop(0.45, PALETTE.oceanMid);
-    oceanGrad.addColorStop(0.82, PALETTE.oceanDeep);
+    oceanGrad.addColorStop(0.42, PALETTE.oceanMid);
+    oceanGrad.addColorStop(0.78, PALETTE.oceanDeep);
     oceanGrad.addColorStop(1, PALETTE.oceanLimb);
     ctx.fillStyle = oceanGrad;
     ctx.fillRect(cx - R - 2, cy - R - 2, R * 2 + 4, R * 2 + 4);
+
+    if (!this.options.mini) {
+      const specGrad = ctx.createRadialGradient(
+        cx - R * 0.38, cy - R * 0.38, R * 0.02,
+        cx - R * 0.32, cy - R * 0.32, R * 0.65
+      );
+      specGrad.addColorStop(0, "rgba(140, 208, 255, 0.14)");
+      specGrad.addColorStop(0.55, "rgba(56, 189, 248, 0.04)");
+      specGrad.addColorStop(1, "rgba(56, 189, 248, 0)");
+      ctx.fillStyle = specGrad;
+      ctx.fillRect(cx - R - 2, cy - R - 2, R * 2 + 4, R * 2 + 4);
+    }
 
     // 3. Subtle 3D Graticule
     this._drawGraticuleGlobe(ctx, cam, cx, cy, R);
@@ -1007,14 +1036,16 @@ export class GlobeEngine {
       const cid = item.country.id;
       const hl = highlightMap.get(cid);
       const isHovered = this.options.interactive && this._hoveredCountryId === cid && !this.options.mini;
+      const tone = LAND_TONES[item.toneIdx] || LAND_TONES[0];
 
-      let fill = tunnelXray ? "rgba(27, 58, 92, 0.72)" : PALETTE.landFill;
-      let stroke = tunnelXray ? "rgba(52, 94, 140, 0.85)" : PALETTE.landStroke;
+      let fill = tunnelXray ? "rgba(27, 58, 92, 0.72)" : tone.fill;
+      let stroke = tunnelXray ? "rgba(52, 94, 140, 0.85)" : tone.stroke;
       let lineWidth = this.options.mini ? 0.65 : 0.85;
 
       if (isHovered && !hl) {
         fill = PALETTE.landHover;
-        stroke = "#4E84BD";
+        stroke = PALETTE.landHoverStroke;
+        lineWidth = 1.45;
       }
 
       if (hl) {
@@ -1027,6 +1058,7 @@ export class GlobeEngine {
         fill,
         stroke,
         lineWidth,
+        coastalHalo: !this.options.mini && !tunnelXray && !hl,
         glowColor: hl ? stroke : null,
         glowBlur: hl && hl.pulse ? 6 + pulseWave * 10 : (hl ? 7 : 0),
         pulseAlpha: hl && hl.pulse ? 0.8 + 0.2 * pulseWave : 1,
@@ -1057,7 +1089,7 @@ export class GlobeEngine {
 
     ctx.restore(); // End sphere clip
 
-    // 10. Crisp observatory limb rim stroke
+    // 10. Crisp observatory limb rim stroke & orbital compass degree ring
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
@@ -1070,6 +1102,37 @@ export class GlobeEngine {
     ctx.strokeStyle = PALETTE.goldRim;
     ctx.lineWidth = 0.8;
     ctx.stroke();
+
+    if (!this.options.mini && R > 90) {
+      const compassR = R + 11;
+      ctx.beginPath();
+      ctx.arc(cx, cy, compassR, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(140, 208, 255, 0.13)";
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+
+      const stepDeg = R > 155 ? 5 : 15;
+      for (let deg = 0; deg < 360; deg += stepDeg) {
+        const rad = (deg * Math.PI) / 180;
+        const cosA = Math.cos(rad);
+        const sinA = Math.sin(rad);
+        const isCardinal = deg % 90 === 0;
+        const isMajor = deg % 30 === 0;
+        const isMed = deg % 15 === 0;
+
+        const inner = isCardinal ? compassR - 3.5 : (isMajor ? compassR - 2 : compassR);
+        const outer = isCardinal ? compassR + 6 : (isMajor ? compassR + 4 : (isMed ? compassR + 2.5 : compassR + 1.4));
+
+        ctx.beginPath();
+        ctx.moveTo(cx + cosA * inner, cy + sinA * inner);
+        ctx.lineTo(cx + cosA * outer, cy + sinA * outer);
+        ctx.strokeStyle = isCardinal
+          ? "rgba(247, 147, 30, 0.48)"
+          : (isMajor ? "rgba(140, 208, 255, 0.34)" : (isMed ? "rgba(140, 208, 255, 0.16)" : "rgba(140, 208, 255, 0.08)"));
+        ctx.lineWidth = isCardinal ? 1.25 : (isMajor ? 0.9 : 0.65);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
 
     // 11. Geodesic Arcs (lifted slightly above sphere rim so they can arch beyond limb!)
@@ -1280,14 +1343,19 @@ export class GlobeEngine {
             ctx.lineTo(run[k], run[k + 1]);
           }
         }
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        if (style.coastalHalo) {
+          ctx.strokeStyle = PALETTE.coastalHalo;
+          ctx.lineWidth = 2.8;
+          ctx.stroke();
+        }
         if (style.glowColor && style.glowBlur > 0) {
           ctx.shadowColor = style.glowColor;
           ctx.shadowBlur = style.glowBlur;
         }
         ctx.strokeStyle = style.stroke;
         ctx.lineWidth = style.lineWidth || 1;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
         ctx.stroke();
       }
     }
@@ -1454,6 +1522,7 @@ export class GlobeEngine {
       let pen = false;
       let midProj = null;
       let bestMidDist = Infinity;
+      let prevTipProj = null;
       let tipProj = null;
       const midIdx = Math.floor(maxIdx * 0.5);
 
@@ -1473,13 +1542,17 @@ export class GlobeEngine {
             bestMidDist = distToMid;
             midProj = proj;
           }
+          if (k === maxIdx - 1) prevTipProj = proj;
           if (k === maxIdx) tipProj = proj;
         } else {
           pen = false;
         }
       }
 
-      if (a.dashed) ctx.setLineDash([7, 5]);
+      if (a.dashed) {
+        ctx.setLineDash([8, 6]);
+        ctx.lineDashOffset = -(now * 0.025);
+      }
       ctx.shadowColor = color;
       ctx.shadowBlur = 12;
       ctx.strokeStyle = color;
@@ -1493,9 +1566,13 @@ export class GlobeEngine {
       ctx.lineWidth = this.options.mini ? 0.7 : 1.0;
       ctx.stroke();
 
-      // Glowing spark at animated tip
+      // Directional arrowhead & glowing tip spark
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+      if (!this.options.mini && progress > 0.14 && prevTipProj && tipProj) {
+        this._drawArcArrowhead(ctx, prevTipProj, tipProj, color);
+      }
       if (progress < 0.99 && tipProj) {
-        ctx.setLineDash([]);
         ctx.beginPath();
         ctx.arc(tipProj.sx, tipProj.sy, 4.5, 0, Math.PI * 2);
         ctx.fillStyle = PALETTE.gold;
@@ -1673,6 +1750,7 @@ export class GlobeEngine {
   // ==================== 2D WEB MERCATOR RENDERER ====================
 
   _renderMercator(ctx, w, h, now) {
+    this._framePillRects = [];
     const m = this._mercatorMetrics(w, h);
     const pulseWave = 0.5 + 0.5 * Math.sin(now * 0.0045);
 
@@ -1708,14 +1786,16 @@ export class GlobeEngine {
       const cid = item.country.id;
       const hl = highlightMap.get(cid);
       const isHovered = this.options.interactive && this._hoveredCountryId === cid && !this.options.mini;
+      const tone = LAND_TONES[item.toneIdx] || LAND_TONES[0];
 
-      let fill = PALETTE.landFill;
-      let stroke = PALETTE.landStroke;
+      let fill = tone.fill;
+      let stroke = tone.stroke;
       let lineWidth = 0.85;
 
       if (isHovered && !hl) {
         fill = PALETTE.landHover;
-        stroke = "#4E84BD";
+        stroke = PALETTE.landHoverStroke;
+        lineWidth = 1.45;
       }
       if (hl) {
         fill = hl.fill || "rgba(255, 224, 102, 0.36)";
@@ -1727,6 +1807,7 @@ export class GlobeEngine {
         fill,
         stroke,
         lineWidth,
+        coastalHalo: !this.options.mini && !hl,
         glowColor: hl ? stroke : null,
         glowBlur: hl && hl.pulse ? 6 + pulseWave * 10 : (hl ? 7 : 0),
         pulseAlpha: hl && hl.pulse ? 0.8 + 0.2 * pulseWave : 1,
@@ -1791,6 +1872,29 @@ export class GlobeEngine {
         ctx.stroke();
       }
     }
+
+    if (!this.options.mini && w >= 420) {
+      const refLats = [60, 30, 0, -30, -60];
+      ctx.font = '600 10px "JetBrains Mono", "Poppins", monospace';
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "left";
+      for (let i = 0; i < refLats.length; i++) {
+        const lat = refLats[i];
+        const y = m.cy - (mercY(lat) - m.camY) * m.scale;
+        if (y < Math.max(72, topY + 14) || y > Math.min(h - 70, botY - 14)) continue;
+        const txt = lat === 0 ? "0° EQ" : `${Math.abs(lat)}°${lat > 0 ? "N" : "S"}`;
+        const tw = ctx.measureText(txt).width + 10;
+        ctx.fillStyle = lat === 0 ? "rgba(247, 147, 30, 0.16)" : "rgba(7, 19, 36, 0.72)";
+        ctx.strokeStyle = lat === 0 ? "rgba(247, 147, 30, 0.48)" : "rgba(140, 208, 255, 0.22)";
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.roundRect(12, Math.round(y - 8), Math.ceil(tw), 16, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = lat === 0 ? PALETTE.gold : "rgba(220, 205, 186, 0.82)";
+        ctx.fillText(txt, 17, y + 0.5);
+      }
+    }
     ctx.restore();
   }
 
@@ -1842,13 +1946,19 @@ export class GlobeEngine {
         ctx.fill("evenodd");
       }
       if (style.stroke) {
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        if (style.coastalHalo) {
+          ctx.strokeStyle = PALETTE.coastalHalo;
+          ctx.lineWidth = 2.6;
+          ctx.stroke();
+        }
         if (style.glowColor && style.glowBlur > 0) {
           ctx.shadowColor = style.glowColor;
           ctx.shadowBlur = style.glowBlur;
         }
         ctx.strokeStyle = style.stroke;
         ctx.lineWidth = style.lineWidth || 1;
-        ctx.lineJoin = "round";
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
@@ -1981,14 +2091,21 @@ export class GlobeEngine {
 
       for (let tile = minTile; tile <= maxTile; tile++) {
         const shift = tile * 360;
+        let prevProj = null;
+        let tipProj = null;
         ctx.save();
         ctx.beginPath();
         for (let k = 0; k <= maxIdx; k++) {
           const p = this._projectMercLonLat(unwrapped[k][0], unwrapped[k][1], m, shift);
           if (k === 0) ctx.moveTo(p.sx, p.sy);
           else ctx.lineTo(p.sx, p.sy);
+          if (k === maxIdx - 1) prevProj = p;
+          if (k === maxIdx) tipProj = p;
         }
-        if (a.dashed) ctx.setLineDash([7, 5]);
+        if (a.dashed) {
+          ctx.setLineDash([8, 6]);
+          ctx.lineDashOffset = -(now * 0.025);
+        }
         ctx.shadowColor = color;
         ctx.shadowBlur = 10;
         ctx.strokeStyle = color;
@@ -1999,6 +2116,12 @@ export class GlobeEngine {
         ctx.strokeStyle = "rgba(255, 248, 232, 0.7)";
         ctx.lineWidth = 1.0;
         ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+        if (!this.options.mini && progress > 0.14 && prevProj && tipProj) {
+          this._drawArcArrowhead(ctx, prevProj, tipProj, color);
+        }
         ctx.restore();
 
         if (a.label && !this.options.mini && progress > 0.55) {
@@ -2108,45 +2231,115 @@ export class GlobeEngine {
     }
   }
 
+  _drawArcArrowhead(ctx, prevProj, tipProj, color) {
+    const dx = tipProj.sx - prevProj.sx;
+    const dy = tipProj.sy - prevProj.sy;
+    if (Math.hypot(dx, dy) < 0.5) return;
+    const angle = Math.atan2(dy, dx);
+    const size = 8.5;
+
+    ctx.save();
+    ctx.translate(tipProj.sx, tipProj.sy);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(2, 0);
+    ctx.lineTo(-size, -size * 0.58);
+    ctx.lineTo(-size * 0.62, 0);
+    ctx.lineTo(-size, size * 0.58);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.restore();
+  }
+
   _drawLabelPill(ctx, text, x, y, accentColor = PALETTE.orange, alpha = 1) {
     if (!text) return;
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.font = '600 12px "Poppins", system-ui, -apple-system, sans-serif';
+    ctx.font = '600 11.5px "Poppins", system-ui, -apple-system, sans-serif';
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
     const metrics = ctx.measureText(text);
-    const padX = 9;
-    const pillW = Math.ceil(metrics.width) + padX * 2;
-    const pillH = 22;
-    const rx = Math.round(x - pillW * 0.5);
-    const ry = Math.round(y - pillH * 0.5);
-    const radius = 11;
+    const padX = 10;
+    const pillW = Math.ceil(metrics.width) + padX * 2 + 5;
+    const pillH = 24;
+    let drawY = y;
+    let rx = Math.round(x - pillW * 0.5);
+    let ry = Math.round(drawY - pillH * 0.5);
 
-    // Dark observatory pill backdrop
+    if (!this.options.mini && Array.isArray(this._framePillRects)) {
+      const collides = (testRy) => this._framePillRects.some((b) =>
+        rx < b.right + 6 &&
+        rx + pillW + 6 > b.left &&
+        testRy < b.bottom + 4 &&
+        testRy + pillH + 4 > b.top
+      );
+      let tries = 0;
+      while (collides(ry) && tries < 3) {
+        drawY = drawY - (pillH + 7);
+        ry = Math.round(drawY - pillH * 0.5);
+        tries++;
+      }
+      if (ry < 16 || collides(ry)) {
+        drawY = y + pillH + 20;
+        ry = Math.round(drawY - pillH * 0.5);
+      }
+      this._framePillRects.push({
+        left: rx,
+        right: rx + pillW,
+        top: ry,
+        bottom: ry + pillH,
+      });
+    }
+
+    const radius = 8;
+
+    // Frosted V7.3 observatory glass pill backdrop
     ctx.beginPath();
-    ctx.moveTo(rx + radius, ry);
-    ctx.lineTo(rx + pillW - radius, ry);
-    ctx.quadraticCurveTo(rx + pillW, ry, rx + pillW, ry + radius);
-    ctx.lineTo(rx + pillW, ry + pillH - radius);
-    ctx.quadraticCurveTo(rx + pillW, ry + pillH, rx + pillW - radius, ry + pillH);
-    ctx.lineTo(rx + radius, ry + pillH);
-    ctx.quadraticCurveTo(rx, ry + pillH, rx, ry + pillH - radius);
-    ctx.lineTo(rx, ry + radius);
-    ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
-    ctx.closePath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(rx, ry, pillW, pillH, radius);
+    } else {
+      ctx.moveTo(rx + radius, ry);
+      ctx.lineTo(rx + pillW - radius, ry);
+      ctx.quadraticCurveTo(rx + pillW, ry, rx + pillW, ry + radius);
+      ctx.lineTo(rx + pillW, ry + pillH - radius);
+      ctx.quadraticCurveTo(rx + pillW, ry + pillH, rx + pillW - radius, ry + pillH);
+      ctx.lineTo(rx + radius, ry + pillH);
+      ctx.quadraticCurveTo(rx, ry + pillH, rx, ry + pillH - radius);
+      ctx.lineTo(rx, ry + radius);
+      ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
+      ctx.closePath();
+    }
 
-    ctx.fillStyle = "rgba(7, 19, 36, 0.88)";
+    ctx.fillStyle = "rgba(7, 19, 36, 0.90)";
     ctx.fill();
-    ctx.strokeStyle = accentColor;
-    ctx.globalAlpha = alpha * 0.65;
-    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.globalAlpha = alpha;
+    // Left V7.3 specular accent bar
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(rx + 4, ry + 5, 3, pillH - 10, 1.5);
+    } else {
+      ctx.rect(rx + 4, ry + 5, 3, pillH - 10);
+    }
+    ctx.fillStyle = accentColor;
+    ctx.fill();
+
+    // Specular top rim highlight
+    ctx.beginPath();
+    ctx.moveTo(rx + radius, ry + 1);
+    ctx.lineTo(rx + pillW - radius, ry + 1);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
     ctx.fillStyle = PALETTE.parchment;
-    ctx.fillText(text, x, y + 0.5);
+    ctx.fillText(text, x + 2.5, drawY + 0.5);
     ctx.restore();
   }
 }
